@@ -4,5 +4,11 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "installCommand": "npm install",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://fitcontrol-1-j7dj.onrender.com/api/:path*"
+    },
+    { "source": "/:path*", "destination": "/index.html" }
+  ]
 }
