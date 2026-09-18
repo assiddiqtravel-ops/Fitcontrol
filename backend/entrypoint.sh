@@ -39,7 +39,8 @@ case "$cmd" in
   api)
     wait_for_db
     alembic upgrade head
-    exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+    # Render (and most PaaS) inject the port via $PORT; fall back to 8000 locally.
+    exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}"
     ;;
   bot)
     wait_for_db
