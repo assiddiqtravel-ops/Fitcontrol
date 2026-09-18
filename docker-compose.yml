@@ -1,0 +1,81 @@
+# FitControl local stack.
+# Copy .env.example -> .env and set TELEGRAM_BOT_TOKEN / WEBAPP_URL first.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fitcontrol}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fitcontrol}
+      POSTGRES_DB: ${POSTGRES_DB:-fitcontrol}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fitcontrol}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    command: ["api"]
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-fitcontrol}:${POSTGRES_PASSWORD:-fitcontrol}@db:5432/${POSTGRES_DB:-fitcontrol}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      WEBAPP_URL: ${WEBAPP_URL:-}
+      DEV_AUTH_MODE: ${DEV_AUTH_MODE:-false}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      DEFAULT_TIMEZONE: ${DEFAULT_TIMEZONE:-Asia/Tashkent}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  bot:
+    build: ./backend
+    restart: unless-stopped
+    command: ["bot"]
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-fitcontrol}:${POSTGRES_PASSWORD:-fitcontrol}@db:5432/${POSTGRES_DB:-fitcontrol}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      WEBAPP_URL: ${WEBAPP_URL:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+
+  scheduler:
+    build: ./backend
+    restart: unless-stopped
+    command: ["scheduler"]
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-fitcontrol}:${POSTGRES_PASSWORD:-fitcontrol}@db:5432/${POSTGRES_DB:-fitcontrol}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      DEFAULT_TIMEZONE: ${DEFAULT_TIMEZONE:-Asia/Tashkent}
+      DAILY_SUMMARY_HOUR: ${DAILY_SUMMARY_HOUR:-9}
+      EXPIRY_REMINDER_DAYS: ${EXPIRY_REMINDER_DAYS:-3}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  miniapp:
+    build:
+      context: ./miniapp
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-}
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

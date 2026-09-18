@@ -1,0 +1,11 @@
+# FitControl backend dependencies (pinned for reproducibility)
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.9.2
+pydantic-settings==2.6.1
+SQLAlchemy==2.0.36
+alembic==1.14.0
+asyncpg==0.30.0
+aiogram==3.15.0
+python-dateutil==2.9.0.post0
+httpx==0.28.1
