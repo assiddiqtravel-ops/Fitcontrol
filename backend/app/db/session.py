@@ -20,7 +20,18 @@ _engine: AsyncEngine | None = None
 _sessionmaker: async_sessionmaker[AsyncSession] | None = None
 
 
+def _normalize_async_url(url: str) -> str:
+    """Accept the bare ``postgresql://`` URL that hosts like Render hand out and
+    upgrade it to the async driver the app requires."""
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    if url.startswith("postgres://"):  # some providers use this scheme
+        return url.replace("postgres://", "postgresql+asyncpg://", 1)
+    return url
+
+
 def _make_engine(url: str) -> AsyncEngine:
+    url = _normalize_async_url(url)
     connect_args: dict = {}
     if url.startswith("sqlite"):
         connect_args["check_same_thread"] = False

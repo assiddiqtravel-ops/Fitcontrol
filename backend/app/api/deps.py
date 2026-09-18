@@ -180,6 +180,14 @@ class RequireRole:
         return ctx
 
 
+async def require_platform_admin(user: User = Depends(get_current_user)) -> User:
+    """Guard for support/recovery endpoints. platform_admin is set out-of-band
+    (DB flag via ``python -m app.manage grant-admin``), never self-service."""
+    if not user.is_platform_admin:
+        raise ForbiddenError("Platform administrator access required", code="not_platform_admin")
+    return user
+
+
 # Convenience singletons
 require_trainer = RequireRole(Role.trainer)
 require_admin = RequireRole(Role.club_admin)

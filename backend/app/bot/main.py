@@ -153,14 +153,24 @@ async def fallback(message: Message) -> None:
     await message.answer("Не понимаю команду. Наберите /help или откройте приложение через /start.")
 
 
-async def run() -> None:
+def build_bot() -> Bot:
+    """Construct a configured Bot instance (shared by polling & webhook modes)."""
     if not settings.telegram_bot_token:
         raise RuntimeError("TELEGRAM_BOT_TOKEN is not set")
-    bot = Bot(
+    return Bot(
         token=settings.telegram_bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
+
+
+async def run() -> None:
+    bot = build_bot()
     logger.info("Starting FitControl bot (long polling)")
+    # Ensure no webhook is set while polling (they are mutually exclusive).
+    try:
+        await bot.delete_webhook(drop_pending_updates=False)
+    except Exception:  # noqa: BLE001
+        pass
     try:
         await dp.start_polling(bot)
     finally:

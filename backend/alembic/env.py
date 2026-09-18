@@ -28,8 +28,12 @@ def _sync_url() -> str:
     url = os.getenv(
         "DATABASE_URL", "postgresql+asyncpg://fitcontrol:fitcontrol@localhost:5432/fitcontrol"
     )
-    # Normalize async drivers to sync for Alembic's synchronous engine.
-    url = url.replace("+asyncpg", "+psycopg2").replace("+aiosqlite", "")
+    # Normalize async drivers to sync for Alembic's synchronous engine, and
+    # accept the bare postgres:// / postgresql:// URLs hosts hand out.
+    url = url.replace("postgresql+asyncpg", "postgresql+psycopg2")
+    url = url.replace("+aiosqlite", "")
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
     return url
 
 

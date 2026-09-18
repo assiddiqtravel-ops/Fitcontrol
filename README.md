@@ -18,6 +18,8 @@ PostgreSQL, изоляция данных по клубам, финансовы�
 - [Ключевые решения](#ключевые-решения)
 - [Быстрый старт (Docker)](#быстрый-старт-docker)
 - [Локальный запуск без Docker](#локальный-запуск-без-docker)
+- [Продакшн-деплой (Vercel + Render)](#продакшн-деплой-vercel--render)
+- [Восстановление доступа](#восстановление-доступа)
 - [Настройка Telegram-бота и Mini App](#настройка-telegram-бота-и-mini-app)
 - [Переменные окружения](#переменные-окружения)
 - [API](#api)
@@ -153,6 +155,52 @@ npm run build                                 # прод-сборка в dist/
 npm run typecheck                             # проверка типов
 ```
 
+## Продакшн-деплой (Vercel + Render)
+
+Полное пошаговое руководство — [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+Кратко:
+
+- **Frontend (Mini App)** → **Vercel**. Root Directory `miniapp`, framework Vite
+  (`vercel.json` настраивает SPA-rewrite). Единственная переменная —
+  `VITE_API_BASE=https://<render-api>/api/v1`. Секретов backend и токена бота во
+  фронтенде **нет**.
+- **Backend** → **Render** по блюпринту [`render.yaml`](render.yaml): Web Service
+  (FastAPI, health-check `/health`) + Background Worker бота + Background Worker
+  планировщика. Фоновые задачи и уведомления не зависят от открытого браузера.
+- **PostgreSQL** → управляемая Render Postgres (данные не в локальной ФС сервиса;
+  `DATABASE_URL` через переменные окружения; миграции Alembic применяются на
+  старте API).
+- **Telegram updates** → **основной способ — long polling** в Background Worker
+  (`TELEGRAM_UPDATE_MODE=polling`). Альтернатива — webhook в API
+  (`TELEGRAM_UPDATE_MODE=webhook` + `TELEGRAM_WEBHOOK_SECRET` + `PUBLIC_API_URL`,
+  регистрация `python -m app.manage set-webhook`). Способ описан в DEPLOYMENT.
+- **Домены и HTTPS**, полный список переменных окружения, а также **аварийное
+  восстановление** (перезапуск/rollback Render, восстановление БД из бэкапа) —
+  в DEPLOYMENT.
+
+## Восстановление доступа
+
+Данные клуба привязаны к `club_id`, а не к Telegram-аккаунту — **потеря
+Telegram не удаляет клуб и его данные**. Telegram ID не является единственным
+фактором восстановления: у клуба есть внешние контакты `recovery_email` /
+`recovery_phone` (Настройки), которые поддержка проверяет перед восстановлением.
+
+Восстановление выполняет роль поддержки `platform_admin` (назначается только
+на сервере):
+
+```bash
+python -m app.manage grant-admin <telegram_id_поддержки>
+python -m app.manage list-admins
+```
+
+Эндпоинты (только `platform_admin`, требуют `reason`, всё пишется в `AuditLog`):
+- `POST /api/v1/support/clubs/{club_id}/grant-access` — выдать/восстановить
+  доступ новому Telegram-аккаунту с сохранением `club_id` и всех данных;
+- `POST /api/v1/support/recovery/change-telegram-id` — сменить Telegram ID
+  существующего пользователя, сохранив все членства (и club_id).
+
+Подробности и процедура проверки — в [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md#9-account-recovery-lost-telegram-account).
+
 ## Настройка Telegram-бота и Mini App
 
 1. **Создать бота**: напишите [@BotFather](https://t.me/BotFather) → `/newbot`,
@@ -202,8 +250,9 @@ OpenAPI/Swagger: `GET /api/v1/docs`. Единый формат ошибок:
 
 Группы: `/auth/telegram` (через `/auth/me`), `/clubs`, `/clubs/current`,
 `/dashboard`, `/clients`, `/plans`, `/subscriptions`, `/payments`, `/debts`,
-`/visits`, `/staff/invites`, `/staff`, `/reports`, `/settings`. Health —
-`GET /health`.
+`/visits`, `/staff/invites`, `/staff`, `/reports`, `/settings`, `/support`
+(восстановление доступа, только platform_admin). Health — `GET /health`.
+Telegram webhook (только в режиме webhook) — `POST /api/v1/telegram/webhook`.
 
 ## Тесты
 
@@ -228,10 +277,13 @@ pytest -q
 ## Ограничения MVP и следующие этапы
 
 Реализовано и **фактически проверено** в этом окружении: сборка backend
-(импорт приложения, 31 маршрут), миграции Alembic (up/down), полный прогон
-Pytest (backend), typecheck и прод-сборка Mini App. **Не** запускалось здесь:
-полный `docker compose up` (нет запущенного демона в этой среде — команды в
-README проверьте у себя), реальная доставка сообщений в Telegram (нужен токен).
+(импорт приложения, boot через uvicorn, реальные HTTP-запросы), миграции
+Alembic (up/down, `alembic check` без дрейфа), полный прогон Pytest (backend,
+включая RBAC, изоляцию, финансы, восстановление доступа и проверку секрета
+webhook), typecheck и прод-сборка Mini App, management-CLI. **Не** запускалось
+здесь: полный `docker compose up` и деплой на Vercel/Render (нет доступа к
+вашим аккаунтам — используйте `docs/DEPLOYMENT.md`), реальная доставка
+сообщений в Telegram и регистрация webhook (нужен токен и публичные URL).
 
 Осознанно вне рамок MVP / следующие этапы:
 - QR-регистрация посещений (заложено как расширение; безопасная реализация —

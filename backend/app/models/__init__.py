@@ -75,6 +75,11 @@ class Club(PKMixin, TimestampMixin, Base):
         Boolean, default=True, nullable=False
     )
     expiry_reminder_days: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
+    # Out-of-band recovery contacts. Support verifies these BEFORE restoring
+    # access to a new Telegram account, so a Telegram ID is never the only way
+    # to recover a club. Never used for authentication, only identity checks.
+    recovery_email: Mapped[str | None] = mapped_column(String(200))
+    recovery_phone: Mapped[str | None] = mapped_column(String(32))
 
     memberships: Mapped[list["ClubMembership"]] = relationship(back_populates="club")
 

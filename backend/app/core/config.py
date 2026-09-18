@@ -37,6 +37,16 @@ class Settings(BaseSettings):
     webapp_url: str = Field(default="")
     # Max age (seconds) accepted for initData auth_date freshness.
     initdata_max_age_seconds: int = Field(default=86400)
+    # How the bot receives Telegram updates: "polling" (a Background Worker) or
+    # "webhook" (Telegram POSTs to the API). See docs/DEPLOYMENT.md — polling is
+    # the documented primary method on Render.
+    telegram_update_mode: str = Field(default="polling")  # polling | webhook
+    # Shared secret placed in Telegram's X-Telegram-Bot-Api-Secret-Token header.
+    # Required to accept webhook deliveries; keep it long and random.
+    telegram_webhook_secret: str = Field(default="")
+    # Public HTTPS base URL of THIS backend (Render URL), used to register the
+    # webhook, e.g. https://fitcontrol-api.onrender.com
+    public_api_url: str = Field(default="")
 
     # --- Auth / security ---
     # DEV_AUTH_MODE lets the API accept an unsigned dev identity header. It is
@@ -58,6 +68,10 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.environment.strip().lower() == "production"
+
+    @property
+    def webhook_path(self) -> str:
+        return f"{self.api_v1_prefix}/telegram/webhook"
 
     @property
     def cors_origins_list(self) -> list[str]:

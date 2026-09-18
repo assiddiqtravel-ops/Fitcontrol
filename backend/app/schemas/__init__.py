@@ -54,6 +54,8 @@ class ClubOut(ORMModel):
     notify_overdue_enabled: bool
     notify_daily_summary_enabled: bool
     expiry_reminder_days: int
+    recovery_email: str | None = None
+    recovery_phone: str | None = None
     created_at: datetime
 
 
@@ -71,6 +73,8 @@ class ClubSettingsUpdate(BaseModel):
     notify_overdue_enabled: bool | None = None
     notify_daily_summary_enabled: bool | None = None
     expiry_reminder_days: int | None = Field(default=None, ge=0, le=60)
+    recovery_email: str | None = Field(default=None, max_length=200)
+    recovery_phone: str | None = Field(default=None, max_length=32)
 
 
 class ClubMembershipOut(BaseModel):
@@ -335,3 +339,32 @@ class ReportIncomeOut(BaseModel):
     total_refunds: int
     net_income: int
     by_method: list[IncomeByMethod]
+
+
+# --- Support / account recovery (platform_admin only) ---
+class GrantAccessIn(BaseModel):
+    """Restore/grant access to a club for a Telegram account (support flow)."""
+
+    telegram_id: int
+    role: Role = Role.club_owner
+    reason: str = Field(min_length=3, description="Support ticket / verification note")
+    deactivate_membership_id: int | None = Field(
+        default=None, description="Optional: old membership to disable in the same step"
+    )
+
+
+class ChangeTelegramIdIn(BaseModel):
+    """Move an existing user identity to a new Telegram ID, keeping all
+    memberships (and therefore every club_id) intact."""
+
+    current_telegram_id: int
+    new_telegram_id: int
+    reason: str = Field(min_length=3)
+
+
+class RecoveryResultOut(BaseModel):
+    ok: bool
+    user_id: int
+    telegram_id: int
+    affected_club_ids: list[int]
+    message: str
