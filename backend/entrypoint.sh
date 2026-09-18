@@ -16,6 +16,11 @@ from sqlalchemy import text
 
 async def main():
     url = os.environ["DATABASE_URL"]
+    # Normalize bare postgres URLs to the async driver (same as app.db.session).
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    elif url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+asyncpg://", 1)
     for attempt in range(30):
         try:
             eng = create_async_engine(url)
