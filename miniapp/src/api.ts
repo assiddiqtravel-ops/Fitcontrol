@@ -1,6 +1,15 @@
 import { authHeaders } from "./telegram";
 
-const BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
+// Resolve the API base robustly. `??` does NOT catch an empty string, so an
+// empty VITE_API_BASE (a common misconfig) would send requests to "/auth/me"
+// (no /api prefix) and hit the SPA fallback (HTML → "Unexpected token '<'").
+// Fall back to the relative "/api/v1" for any empty/blank value; in production
+// Vercel proxies /api/* to the backend, and in dev Vite proxies it.
+const RAW_API_BASE = import.meta.env.VITE_API_BASE;
+const BASE =
+  typeof RAW_API_BASE === "string" && RAW_API_BASE.trim().length > 0
+    ? RAW_API_BASE.trim().replace(/\/+$/, "")
+    : "/api/v1";
 
 export class ApiError extends Error {
   code: string;
