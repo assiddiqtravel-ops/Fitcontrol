@@ -52,8 +52,10 @@ class InitData:
     start_param: str | None = None
 
 
-def _build_data_check_string(pairs: list[tuple[str, str]]) -> str:
-    filtered = [(k, v) for k, v in pairs if k not in ("hash", "signature")]
+def _build_data_check_string(
+    pairs: list[tuple[str, str]], exclude: tuple[str, ...]
+) -> str:
+    filtered = [(k, v) for k, v in pairs if k not in exclude]
     filtered.sort(key=lambda kv: kv[0])
     return "\n".join(f"{k}={v}" for k, v in filtered)
 
@@ -83,14 +85,26 @@ def validate_init_data(
     if not provided_hash:
         raise InitDataError("missing_hash", "initData has no hash field")
 
-    data_check_string = _build_data_check_string(pairs)
+    # Secret key = HMAC_SHA256(key="WebAppData", msg=bot_token). The token is
+    # stripped defensively (a trailing newline/space pasted into an env var is a
+    # common cause of a "mismatch").
+    secret_key = hmac.new(
+        b"WebAppData", bot_token.strip().encode(), hashlib.sha256
+    ).digest()
 
-    secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
-    computed_hash = hmac.new(
-        secret_key, data_check_string.encode(), hashlib.sha256
-    ).hexdigest()
+    # Telegram / aiogram compute the data-check-string over ALL received fields
+    # except ``hash`` — including the newer Ed25519 ``signature`` field when the
+    # client sends one. We validate against that standard, and also accept the
+    # legacy "exclude signature too" interpretation, so both old and new Telegram
+    # clients validate. Either candidate proves possession of the bot token.
+    candidates = []
+    for exclude in (("hash",), ("hash", "signature")):
+        dcs = _build_data_check_string(pairs, exclude)
+        candidates.append(
+            hmac.new(secret_key, dcs.encode(), hashlib.sha256).hexdigest()
+        )
 
-    if not hmac.compare_digest(computed_hash, provided_hash):
+    if not any(hmac.compare_digest(c, provided_hash) for c in candidates):
         raise InitDataError("bad_signature", "initData signature mismatch")
 
     # Freshness
